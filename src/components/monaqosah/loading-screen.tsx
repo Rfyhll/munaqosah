@@ -261,7 +261,7 @@ export function LoadingScreen() {
               className="drop-shadow-[0_0_30px_rgba(15,77,58,0.3)]"
             >
               <Image
-                src="/logo-bahtra.webp"
+                src="/OIP.jpg"
                 alt="Logo Bahtra"
                 width={200}
                 height={200}
