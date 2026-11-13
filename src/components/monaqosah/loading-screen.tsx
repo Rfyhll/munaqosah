@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useMonaqosah } from "@/store/monaqosah";
-import { playTick, startArabicMusic, stopArabicMusic } from "@/lib/arabic-music";
+import { playTick, startArabicMusic, stopArabicMusic, preloadMusic } from "@/lib/arabic-music";
 
 export function LoadingScreen() {
   const setLoaded = useMonaqosah((s) => s.setLoaded);
@@ -16,37 +16,51 @@ export function LoadingScreen() {
   // YouTube IFrame API is not allowed to play with sound.
   const [stage, setStage] = useState<"gate" | "intro" | "loading" | "done">("gate");
 
+  // PRELOAD the YouTube player MUTED on mount. Muted autoplay is always
+  // allowed, so the video starts buffering + playing silently right
+  // away. Then when the user clicks "Klik untuk Memulai", we unmute it
+  // synchronously inside the gesture (see startLoading). This is the
+  // ONLY reliable way to get YouTube audio to play after a gesture,
+  // because the YT IFrame API is async and any `await` after a click
+  // breaks the gesture chain.
+  useEffect(() => {
+    if (audioEnabled) {
+      preloadMusic();
+    }
+  }, [audioEnabled]);
+
   // Begin audio + loading animation ONLY after a user gesture (click on
   // the "Klik untuk Memulai" button). This click is what unblocks the
-  // previously-silent AudioContext AND lets the YouTube IFrame play
-  // with sound: startArabicMusic() creates the hidden iframe inside
-  // this very gesture, which is the only way browsers allow
-  // autoplay-with-sound afterwards.
+  // previously-muted YouTube iframe (unmute + play) AND the Web Audio
+  // tick sounds. startArabicMusic() is SYNCHRONOUS — it must not await
+  // anything, so the unmute happens inside the gesture.
   const startLoading = () => {
     if (stage !== "gate") return;
     if (audioEnabled) {
-      // Call inside the gesture — this creates the iframe + player and
-      // immediately starts playback with sound.
       startArabicMusic();
     }
     setStage("intro");
   };
 
-  // Keep the music going as the loading stages progress. The player is
-  // already created + playing from startLoading(); this effect just
-  // makes sure we restart it if React unmounts/remounts the component.
-  useEffect(() => {
-    if (stage === "gate" || !audioEnabled) return;
-    // Player already preloaded by the gate click; just nudge it.
-    startArabicMusic();
-    return () => {
-      stopArabicMusic();
-    };
-  }, [audioEnabled, stage]);
+  // NOTE: there is intentionally NO useEffect that auto-advances the
+  // stage from "intro" to "loading" here. The original code had a
+  // `setTimeout(() => setStage("loading"), 1200)` running on mount that
+  // fired even while still in the "gate" stage — that is why the
+  // loading bar started before the user clicked. The intro -> loading
+  // transition now happens ONLY inside the gate click handler below.
 
+  // Drive the progress-bar ticking while we are in the "loading"
+  // stage, and advance intro -> loading on a timer. Both timers are
+  // gated on stage actually being past "gate", so the loading bar can
+  // NEVER start before the user clicks "Klik untuk Memulai".
   useEffect(() => {
-    // After 1.2s, move to loading bar.
-    const t1 = setTimeout(() => setStage("loading"), 1200);
+    if (stage === "gate") return;
+
+    // After 1.2s in intro, move to the loading bar.
+    let t1: ReturnType<typeof setTimeout> | undefined;
+    if (stage === "intro") {
+      t1 = setTimeout(() => setStage("loading"), 1200);
+    }
 
     let raf: number;
     let last = 0;
@@ -79,10 +93,17 @@ export function LoadingScreen() {
     raf = requestAnimationFrame(tick);
 
     return () => {
-      clearTimeout(t1);
+      if (t1) clearTimeout(t1);
       cancelAnimationFrame(raf);
     };
   }, [stage, setLoaded, audioEnabled]);
+
+  // Stop music when the loading screen unmounts (done).
+  useEffect(() => {
+    return () => {
+      stopArabicMusic();
+    };
+  }, []);
 
   return (
     <AnimatePresence>

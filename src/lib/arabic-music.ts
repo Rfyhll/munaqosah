@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * YouTube music player using the IFrame Player API.
+ * YouTube background-music player — MUTE-PRELOAD + UNMUTE-ON-GESTURE.
  *
  * Plays Arabic orchestral music as background:
  *  - Loading screen: "CEK SOUND ARABIC - SOUND SYSTEM LEBIH BERKELAS - WIJAYA ENTERTAINMENT"
@@ -9,24 +9,23 @@
  *  - MC Screen (acara berlangsung): "National Arab Orchestra - Ghanili Shway"
  *    Video ID: JAFTuss-Ekw
  *
- * IMPORTANT (autoplay policy):
- *  - The YouTube <iframe> MUST be created during a user gesture, but
- *    the call to playVideo() can happen any time after that. The trick
- *    that actually works across browsers is: create the player (which
- *    embeds the iframe) on the FIRST user gesture, wait for onReady,
- *    then call playVideo() with sound. We no longer defer iframe
- *    creation until after the gate — we preload it eagerly.
+ * WHY MUTE-PRELOAD?
+ *  Browsers block YouTube autoplay-WITH-SOUND unless the play call
+ *  happens synchronously inside a real user gesture. The catch: the
+ *  YT IFrame API is async — `new YT.Player(...)` + `onReady` happen
+ *  after a tick, by which point the gesture is gone. So calling
+ *  playVideo() after an `await` is always blocked.
  *
- * Implementation:
- *  - `preloadPlayer()` creates the hidden iframe + YT.Player instance
- *    and is called on EVERY user gesture (gate click, audio toggle,
- *    page click) until ready. This is what unlocks autoplay-with-sound.
- *  - `startArabicMusic()` / `startMcMusic()` then just call
- *    playVideo() on the already-ready player (or queue a pendingPlay
- *    flag if the player isn't ready yet).
- *  - The tick sound uses a SHARED AudioContext that is resumed on the
- *    same gesture; previously every tick created a brand-new suspended
- *    AudioContext and closed it immediately, which produced NO sound.
+ *  Trick that actually works:
+ *   1. On component mount, create the player MUTED + autoplay=1.
+ *      Muted autoplay is ALWAYS allowed by every browser, no gesture
+ *      needed. The video starts playing silently in the background.
+ *   2. When the user clicks "Klik untuk Memulai" (a real gesture),
+ *      call `player.unMute()` SYNCHRONOUSLY inside that handler.
+ *      Unmuting an already-playing video is permitted inside a
+ *      gesture, so audio becomes audible immediately.
+ *   3. To switch tracks (loading -> MC), call `loadVideoById()` +
+ *      `unMute()` inside the MC button's click gesture.
  */
 
 const LOADING_VIDEO_ID = "8rGeb1a-iPs"; // CEK SOUND ARABIC - WIJAYA ENTERTAINMENT
@@ -48,15 +47,20 @@ function getAudioCtx(): AudioContext | null {
   return _audioCtx;
 }
 
+// ---------- YouTube player state -------------------------------------------
 let player: any = null;
 let isReady = false;
-// Which video the user actually W wants to hear right now. The player
-// may have been preloaded with the loading video; if the user opens
-// the MC screen before the loading music ever started, we swap.
-let desiredVideoId: string | null = null;
+let apiLoading = false;
 // Which video is currently loaded into the iframe.
 let currentVideoId: string | null = null;
-let apiLoading = false;
+// Which video the caller WANTS to play right now (used by onReady to
+// catch a switch requested before the player finished loading).
+let desiredVideoId: string = LOADING_VIDEO_ID;
+// If the user clicked to unmute before onReady fired, remember it so
+// onReady can perform the unmute the moment the player is ready.
+let wantUnmute = false;
+// Whether the user has ever unmuted (so we don't re-mute by accident).
+let isUnmuted = false;
 
 /** Load the YouTube IFrame API script once. */
 function loadAPI(): Promise<void> {
@@ -91,24 +95,18 @@ function loadAPI(): Promise<void> {
   });
 }
 
-/** Create the hidden player + iframe. Must be called within a user
- *  gesture for autoplay-with-sound to be allowed later. */
-async function preloadPlayer(videoId: string): Promise<any> {
-  if (typeof window === "undefined") return null;
+/**
+ * Create the hidden MUTED player on mount. No user gesture needed —
+ * muted autoplay is always allowed. The video starts playing silently
+ * immediately so that, the moment the user clicks, we can unmute it
+ * synchronously inside the gesture.
+ */
+export async function preloadMusic(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (player) return; // already created
   await loadAPI();
   const YT = (window as any).YT;
-  if (!YT || !YT.Player) return null;
-
-  // Player already exists — just make sure the right video is loaded.
-  if (player) {
-    if (currentVideoId !== videoId) {
-      try {
-        player.loadVideoById(videoId);
-        currentVideoId = videoId;
-      } catch {}
-    }
-    return player;
-  }
+  if (!YT || !YT.Player) return;
 
   let container = document.getElementById("yt-music-container");
   if (!container) {
@@ -126,108 +124,129 @@ async function preloadPlayer(videoId: string): Promise<any> {
     document.body.appendChild(container);
   }
 
+  // YT.Player REPLACES the given element with an <iframe>, so we need a
+  // fresh child element each time we (re)create the player.
   let inner = document.getElementById("yt-music-player");
-  if (!inner) {
-    inner = document.createElement("div");
-    inner.id = "yt-music-player";
-    inner.style.width = "100%";
-    inner.style.height = "100%";
-    container.appendChild(inner);
-  }
+  if (inner) inner.remove();
+  inner = document.createElement("div");
+  inner.id = "yt-music-player";
+  inner.style.width = "100%";
+  inner.style.height = "100%";
+  container.appendChild(inner);
 
-  return new Promise((resolve) => {
-    player = new YT.Player("yt-music-player", {
-      videoId: videoId,
-      width: "1",
-      height: "1",
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        playsinline: 1,
-        rel: 0,
-        loop: 1,
-        playlist: videoId,
+  const startVideo = desiredVideoId;
+  player = new YT.Player("yt-music-player", {
+    videoId: startVideo,
+    width: "1",
+    height: "1",
+    playerVars: {
+      autoplay: 1, // start playing immediately...
+      mute: 1, // ...but MUTED, so autoplay is allowed with no gesture
+      controls: 0,
+      disablekb: 1,
+      fs: 0,
+      modestbranding: 1,
+      playsinline: 1,
+      rel: 0,
+      loop: 1,
+      playlist: startVideo,
+    },
+    events: {
+      onReady: () => {
+        isReady = true;
+        currentVideoId = startVideo;
+        try {
+          player.setVolume(60);
+          // If desired video changed while loading, swap now.
+          if (desiredVideoId !== currentVideoId) {
+            player.loadVideoById(desiredVideoId);
+            currentVideoId = desiredVideoId;
+          }
+          // If the user already clicked to unmute before we were ready,
+          // perform the unmute now (this is still within the same task
+          // the gesture started if it fired fast enough; even if not,
+          // unmuting an already-playing muted iframe is allowed).
+          if (wantUnmute || isUnmuted) {
+            player.unMute();
+            player.setVolume(60);
+            player.playVideo();
+            isUnmuted = true;
+          }
+        } catch {}
       },
-      events: {
-        onReady: () => {
-          isReady = true;
-          currentVideoId = videoId;
-          // If the user already asked to play a (different) video
-          // before we finished loading, swap + play now.
-          if (desiredVideoId && desiredVideoId !== currentVideoId) {
-            try {
-              player.loadVideoById(desiredVideoId);
-              currentVideoId = desiredVideoId;
-            } catch {}
-          }
-          if (desiredVideoId) {
-            try {
-              player.setVolume(60);
-              player.playVideo();
-            } catch {}
-          }
-          resolve(player);
-        },
-        onStateChange: (event: any) => {
-          // When the video ends, loop it.
-          if (event.data === 0) {
-            try {
-              player.seekTo(0);
-              player.playVideo();
-            } catch {}
-          }
-        },
-        onError: () => {
-          // Silent fail on region block etc.
-        },
+      onStateChange: (event: any) => {
+        // Loop the video when it ends.
+        if (event.data === 0) {
+          try {
+            player.seekTo(0);
+            player.playVideo();
+          } catch {}
+        }
+        // If the desired video changed and we just got a "playing"
+        // state, make sure the volume/unmute is honored.
+        if (event.data === 1 && isUnmuted) {
+          try {
+            player.unMute();
+            player.setVolume(60);
+          } catch {}
+        }
       },
-    });
-    setTimeout(() => resolve(player), 3000);
+      onError: () => {
+        // Silent fail on region block etc.
+      },
+    },
   });
 }
 
-/** Start playing the LOADING screen music (CEK SOUND ARABIC). */
-export async function startArabicMusic() {
-  desiredVideoId = LOADING_VIDEO_ID;
-  try {
-    const p = await preloadPlayer(LOADING_VIDEO_ID);
-    if (!p) return;
-    if (!isReady) {
-      // onReady will pick up desiredVideoId and play.
-      return;
+/** Switch the desired track. If the player is ready, swap the video
+ *  immediately; otherwise onReady will pick it up. */
+function setDesiredVideo(videoId: string) {
+  desiredVideoId = videoId;
+  if (player && isReady) {
+    if (currentVideoId !== videoId) {
+      try {
+        player.loadVideoById(videoId);
+        currentVideoId = videoId;
+      } catch {}
     }
-    if (currentVideoId !== LOADING_VIDEO_ID) {
-      p.loadVideoById(LOADING_VIDEO_ID);
-      currentVideoId = LOADING_VIDEO_ID;
-    }
-    p.setVolume(60);
-    p.playVideo();
-  } catch {}
+  }
 }
 
-/** Start playing the MC SCREEN music (Ghanili Shway). */
-export async function startMcMusic() {
-  desiredVideoId = MC_VIDEO_ID;
-  try {
-    const p = await preloadPlayer(MC_VIDEO_ID);
-    if (!p) return;
-    if (!isReady) {
-      return;
-    }
-    if (currentVideoId !== MC_VIDEO_ID) {
-      p.loadVideoById(MC_VIDEO_ID);
-      currentVideoId = MC_VIDEO_ID;
-    }
-    p.setVolume(60);
-    p.playVideo();
-  } catch {}
+/**
+ * Unmute the already-playing muted video. MUST be called synchronously
+ * inside a user gesture (click handler) for the unmute to take effect.
+ * Safe to call repeatedly.
+ */
+function unmuteMusic() {
+  wantUnmute = true;
+  isUnmuted = true;
+  // Also try to resume the Web Audio context (for tick sounds) inside
+  // the same gesture.
+  getAudioCtx();
+  if (player && isReady) {
+    try {
+      player.unMute();
+      player.setVolume(60);
+      player.playVideo();
+    } catch {}
+  }
 }
 
-/** Stop/pause the music (does NOT clear desiredVideoId, so a later
- *  start can resume). */
+/** Start the LOADING screen music (CEK SOUND ARABIC). Call inside a
+ *  user gesture so the unmute is honored. */
+export function startArabicMusic() {
+  setDesiredVideo(LOADING_VIDEO_ID);
+  unmuteMusic();
+}
+
+/** Start the MC screen music (Ghanili Shway). Call inside a user
+ *  gesture (the MC button click) so the unmute is honored. */
+export function startMcMusic() {
+  setDesiredVideo(MC_VIDEO_ID);
+  unmuteMusic();
+}
+
+/** Stop/pause the music. */
 export function stopArabicMusic() {
   try {
     if (player && isReady) {
@@ -236,15 +255,10 @@ export function stopArabicMusic() {
   } catch {}
 }
 
-/** Preload the player — call on EVERY user gesture (gate click, audio
- *  toggle, first click anywhere). Creating the iframe during a gesture
- *  is what unlocks autoplay-with-sound later. Safe to call repeatedly. */
+/** Preload on mount — backward-compatible alias for preloadMusic(). */
 export async function initAudio() {
   try {
-    // Preload with whichever video is currently desired (default: the
-    // loading-screen track). If desiredVideoId is set we honor it.
-    const vid = desiredVideoId || LOADING_VIDEO_ID;
-    await preloadPlayer(vid);
+    await preloadMusic();
   } catch {}
 }
 
