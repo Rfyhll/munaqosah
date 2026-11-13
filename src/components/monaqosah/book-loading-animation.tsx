@@ -6,14 +6,15 @@
  * Elegant "book opening" loader shown while a dragged Word file is
  * being parsed. Pure CSS/SVG — no external image.
  *
- * Sequence (all SLOW & deliberate):
- *   1. Cover slowly opens (rotateY 0° → -168°) over ~3s.
- *   2. TEN pages flip one-by-one, slowly (~1.8s each flip + short
- *      pause), like a reader deliberately turning each page.
- *   3. Once all 10 are turned, the cover slowly closes, hiding the
- *      page reset, then the cycle loops.
+ * Sequence (10s total cycle, matching the 10s forced parse window):
+ *   1. Cover opens (rotateY 0° → -168°) over ~1.2s.
+ *   2. TEN pages flip one-by-one (~0.65s each + tiny pause).
+ *   3. Cover closes, hiding the page reset, then loops.
  *
- * Total cycle: 24s — everything moves at a calm, ceremonial pace.
+ * Color matching: the static page block on the left and every
+ * flipping page use the IDENTICAL cream gradient, so when a page
+ * lands on the left it blends seamlessly into the page surface
+ * beneath it (no green cover bleeding through, no mismatched cream).
  *
  * Palette: deep pesantren green (#0F4D3A) leather cover, gold (#C9A961)
  * tooling, ivory (#F5EFE0) pages.
@@ -28,17 +29,20 @@ interface BookLoadingAnimationProps {
 const COVER_W = 150; // half-book width (each cover)
 const COVER_H = 200; // book height
 const TOTAL_PAGES = 10;
-const CYCLE = 29; // seconds per full loop — matches the forced parse
-                  // window so the book opens, all 10 pages turn, and the
-                  // cover closes before the Word content appears.
-const COVER_OPEN_END = 3.6; // cover finishes opening at 3.6s (slower)
-const PAGE_FLIP = 2.2; // seconds a single page takes to turn (slower)
-const PAGE_GAP = 0.15; // pause between pages
-const PAGE_START = 3.6; // first page starts flipping right after cover
-// 10 pages: 10*2.2 + 9*0.15 = 23.5s -> last page ends ~27.1s
-const COVER_CLOSE_START = 27.2; // cover starts closing (after all pages)
-const COVER_CLOSE_END = 28.4; // cover fully closed
-const PAGE_RESET = 27.7; // pages snap back to 0 (hidden by closing cover)
+const CYCLE = 10; // seconds per full loop — matches MIN_PARSE_MS
+const COVER_OPEN_END = 1.2; // cover finishes opening at 1.2s
+const PAGE_FLIP = 0.65; // seconds a single page takes to turn
+const PAGE_GAP = 0.05; // pause between pages
+const PAGE_START = 1.2; // first page starts flipping right after cover
+// 10 pages: 10*0.65 + 9*0.05 = 6.95s -> last page ends ~8.15s
+const COVER_CLOSE_START = 8.3; // cover starts closing (after all pages)
+const COVER_CLOSE_END = 9.4; // cover fully closed
+const PAGE_RESET = 8.8; // pages snap back to 0 (hidden by closing cover)
+
+// Identical cream gradient shared by the static page block AND every
+// flipping page, so a landed page matches the surface beneath it.
+const PAGE_GRADIENT =
+  "linear-gradient(90deg, #E8DFC8 0%, #F5EFE0 14%, #F5EFE0 86%, #E8DFC8 100%)";
 
 /** Convert a cycle-seconds value to a fraction of CYCLE for `times`. */
 const t = (s: number) => Math.min(0.999, s / CYCLE);
@@ -145,14 +149,15 @@ export function BookLoadingAnimation({
           </div>
 
           {/* ---------------- Page block (left side) ------------------- */}
+          {/* Same cream gradient as every flipping page, so when a page
+              lands here it matches the surface beneath it seamlessly. */}
           <div
             className="absolute left-0 top-0"
             style={{
               width: COVER_W - 4,
               height: COVER_H - 6,
               transform: "translateX(2px) translateY(3px)",
-              background:
-                "linear-gradient(90deg, #E8DFC8 0%, #F5EFE0 14%, #F5EFE0 86%, #E8DFC8 100%)",
+              background: PAGE_GRADIENT,
               borderRadius: "2px 0 0 2px",
               boxShadow: "inset 0 0 8px rgba(120,100,60,0.12)",
             }}
@@ -161,8 +166,10 @@ export function BookLoadingAnimation({
           </div>
 
           {/* ---------------- 10 flipping pages ----------------------- */}
-          {/* Each page turns slowly around the spine, one after another,
-              then they all reset (hidden behind the closing cover). */}
+          {/* Each page turns around the spine, one after another, then
+              they all reset (hidden behind the closing cover). Uses the
+              SAME PAGE_GRADIENT as the left page block so a landed page
+              blends into the surface beneath it — no color mismatch. */}
           {Array.from({ length: TOTAL_PAGES }).map((_, i) => {
             const flipStart = PAGE_START + i * (PAGE_FLIP + PAGE_GAP);
             const flipEnd = flipStart + PAGE_FLIP;
@@ -178,8 +185,7 @@ export function BookLoadingAnimation({
                   transformOrigin: "left center",
                   transformStyle: "preserve-3d",
                   borderRadius: "0 3px 3px 0",
-                  background:
-                    "linear-gradient(90deg, #E8DFC8 0%, #FBF6E9 14%, #FBF6E9 86%, #E8DFC8 100%)",
+                  background: PAGE_GRADIENT,
                   boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
                   backfaceVisibility: "hidden",
                 }}
