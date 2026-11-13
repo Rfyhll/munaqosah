@@ -9,11 +9,41 @@
  *  - MC Screen (acara berlangsung): "National Arab Orchestra - Ghanili Shway"
  *    Video ID: JAFTuss-Ekw
  *
- * The player swaps videos depending on which screen is active.
+ * IMPORTANT (autoplay policy):
+ *  - YouTube IFrame API cannot autoplay with sound until the page has
+ *    received a user gesture. The loading screen now waits for a
+ *    "Klik untuk Memulai" click before starting, so by the time we call
+ *    playVideo() the gesture has happened and audio will be audible.
+ *  - The tick sound uses a SHARED AudioContext that is resumed on the
+ *    same gesture; previously every tick created a brand-new suspended
+ *    AudioContext and closed it immediately, which produced NO sound.
  */
 
 const LOADING_VIDEO_ID = "8rGeb1a-iPs"; // CEK SOUND ARABIC - WIJAYA ENTERTAINMENT
 const MC_VIDEO_ID = "JAFTuss-Ekw"; // National Arab Orchestra - Ghanili Shway
+
+// ---------- Shared AudioContext for tick sounds -----------------------------
+// Browsers create a brand-new AudioContext in the "suspended" state until
+// the user has interacted with the page. Previously playTick() created a
+// fresh AudioContext per tick and closed it again — every one of those
+// was suspended, so the tick was silent. We now keep ONE context and
+// call resume() on it whenever we touch it.
+let _audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!_audioCtx) {
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return null;
+    _audioCtx = new AC();
+  }
+  if (_audioCtx.state === "suspended") {
+    // Best-effort resume — must be called from within a user gesture
+    // (i.e. the click on "Klik untuk Memulai") to actually unblock audio.
+    _audioCtx.resume().catch(() => {});
+  }
+  return _audioCtx;
+}
 
 let player: any = null;
 let isReady = false;
@@ -191,10 +221,11 @@ export async function initAudio() {
 /** Soft tick for progress bar (Web Audio API). */
 export function playTick() {
   if (typeof window === "undefined") return;
-  const AC = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AC) return;
   try {
-    const ctx = new AC();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    // If still suspended (no gesture yet), bail silently.
+    if (ctx.state === "suspended") return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = "sine";
@@ -207,6 +238,6 @@ export function playTick() {
     g.connect(ctx.destination);
     osc.start(start);
     osc.stop(start + 0.1);
-    ctx.close();
+    // NOTE: do NOT call ctx.close() — the shared context must stay alive.
   } catch {}
 }

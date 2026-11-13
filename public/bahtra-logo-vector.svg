@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle (Bahtra green) -->
+  <circle cx="256" cy="256" r="256" fill="#0F4D3A"/>
+
+  <!-- 8-pointed star outline (gold) -->
+  <g fill="none" stroke="#F7E07A" stroke-width="6" stroke-linejoin="round">
+    <path d="M256 32 L296 168 L432 168 L322 252 L362 388 L256 304 L150 388 L190 252 L80 168 L216 168 Z"/>
+    <path d="M256 32 L296 168 L432 168 L322 252 L362 388 L256 304 L150 388 L190 252 L80 168 L216 168 Z" transform="rotate(45 256 256)"/>
+  </g>
+
+  <!-- White inner background -->
+  <circle cx="256" cy="252" r="125" fill="#FFFFFF"/>
+
+  <!-- Black crescent moon + star -->
+  <g fill="#000000">
+    <path d="M256 152 a 36 36 0 1 0 30 52 a 48 48 0 1 1 -30 -52 Z"/>
+    <path d="M300 192 l 5 11 l 11 1 l -8 8 l 2 11 l -10 -5 l -10 5 l 2 -11 l -8 -8 l 11 -1 Z"/>
+  </g>
+
+  <!-- Open book (black line art) -->
+  <g fill="none" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M180 285 Q 218 270 256 285 Q 294 270 332 285 L 332 360 Q 294 345 256 360 Q 218 345 180 360 Z"/>
+    <line x1="256" y1="285" x2="256" y2="360"/>
+    <line x1="200" y1="300" x2="240" y2="295"/>
+    <line x1="200" y1="315" x2="240" y2="310"/>
+    <line x1="272" y1="295" x2="312" y2="300"/>
+    <line x1="272" y1="310" x2="312" y2="315"/>
+  </g>
+
+  <!-- "BAHTRA" wordmark -->
+  <text x="256" y="430" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="bold" fill="#0F4D3A" letter-spacing="4">BAHTRA</text>
+
+  <!-- Arabic text on a green ribbon -->
+  <g>
+    <rect x="160" y="450" width="192" height="34" rx="6" fill="#0F4D3A"/>
+    <text x="256" y="473" text-anchor="middle" font-family="Amiri, Scheherazade New, serif" font-size="22" fill="#F7E07A">بحترا</text>
+  </g>
+</svg>

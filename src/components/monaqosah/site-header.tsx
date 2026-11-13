@@ -33,10 +33,11 @@ export function SiteHeader() {
             className="drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]"
           >
             <Image
-              src="/bahtra-logo-hd.png"
+              src="/OIP.jpg"
               alt="Logo Bahtra"
               width={48}
               height={48}
+              className="rounded-full"
             />
           </motion.div>
           <div className="leading-tight">
@@ -46,7 +47,7 @@ export function SiteHeader() {
               transition={{ delay: 0.2 }}
               className="text-base font-black tracking-[0.25em] text-white md:text-lg"
             >
-              MONAQOSAH
+              MUNAQOSYAH
             </motion.h1>
             <motion.div
               initial={{ opacity: 0 }}

@@ -225,11 +225,12 @@ export function MCScreen({ visible, onClose }: MCScreenProps) {
               className="drop-shadow-[0_10px_40px_rgba(15,77,58,0.3)]"
             >
               <Image
-                src="/bahtra-logo-hd.png"
+                src="/OIP.jpg"
                 alt="Logo Bahtra"
                 width={280}
                 height={280}
                 priority
+                className="rounded-full"
               />
             </motion.div>
 
@@ -252,7 +253,7 @@ export function MCScreen({ visible, onClose }: MCScreenProps) {
               animate={{ opacity: 1, letterSpacing: "0.25em" }}
               transition={{ delay: 0.8, duration: 1.2 }}
             >
-              MONAQOSAH
+              MUNAQOSYAH
             </motion.h1>
 
             <motion.p

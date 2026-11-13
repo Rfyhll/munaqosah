@@ -26,10 +26,11 @@ const amiri = Amiri({
 });
 
 export const metadata: Metadata = {
-  title: "MonaQosah · Pondok Pesantren Bahtra",
+  title: "Munaqosyah · Pondok Pesantren Bahtra",
   description:
-    "Sidang ujian keilmuan santri Pondok Pesantren Bahtra - sistem monaqosah dengan makro nama, kelas dan kitab.",
+    "Sidang ujian keilmuan santri Pondok Pesantren Bahtra - sistem munaqosyah dengan makro nama, kelas dan kitab.",
   keywords: [
+    "munaqosyah",
     "monaqosah",
     "pesantren",
     "bahtra",
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
     icon: "/bahtra-logo-vector.svg",
   },
   openGraph: {
-    title: "MonaQosah · Pondok Pesantren Bahtra",
+    title: "Munaqosyah · Pondok Pesantren Bahtra",
     description: "Sidang ujian keilmuan santri dengan animasi buku flipbook.",
     type: "website",
   },

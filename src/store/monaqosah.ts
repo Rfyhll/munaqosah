@@ -15,6 +15,9 @@ interface MonaQosahState {
   fileHtml: string | null;
   fileName: string | null;
   setFile: (html: string, name: string) => void;
+  /** Update the HTML of the currently displayed file (e.g. after inline
+   *  editing in the projector display). Persists to localStorage too. */
+  updateFileHtml: (html: string) => void;
   clearFile: () => void;
 
   // Audio enabled
@@ -72,6 +75,22 @@ export const useMonaqosah = create<MonaQosahState>((set) => ({
       }
     }
     set({ fileHtml: html, fileName: name });
+  },
+
+  updateFileHtml: (html) => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ ...parsed, html }),
+        );
+      } catch {
+        /* ignore quota errors */
+      }
+    }
+    set({ fileHtml: html });
   },
 
   clearFile: () => {

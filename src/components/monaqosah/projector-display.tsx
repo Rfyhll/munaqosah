@@ -11,14 +11,21 @@ import {
   X,
   Loader2,
   AlertCircle,
+  Pencil,
+  Check,
 } from "lucide-react";
+import { WordEditor } from "@/components/monaqosah/word-editor";
 
 export function ProjectorDisplay() {
-  const { fileHtml, fileName, setFile, clearFile } = useMonaqosah();
+  const { fileHtml, fileName, setFile, clearFile, updateFileHtml } =
+    useMonaqosah();
   const [isDragging, setIsDragging] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  // Inline edit mode: when true, the Word content becomes editable
+  // (rich-text) directly inside the projector display.
+  const [isEditing, setIsEditing] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
@@ -44,6 +51,8 @@ export function ProjectorDisplay() {
         setIsParsing(false);
         // Brief transition overlay, then show content.
         setIsTransitioning(true);
+        // Exit edit mode if a new file is loaded.
+        setIsEditing(false);
         setTimeout(() => {
           setFile(html, file.name);
           setTimeout(() => setIsTransitioning(false), 400);
@@ -209,6 +218,30 @@ export function ProjectorDisplay() {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  variant={isEditing ? "default" : "outline"}
+                  onClick={() => setIsEditing((v) => !v)}
+                  disabled={isParsing || isTransitioning}
+                  className={`h-8 gap-1 px-3 text-[11px] ${
+                    isEditing
+                      ? "bg-[#0F4D3A] text-white hover:bg-[#0A3326]"
+                      : "border-[#0F4D3A]/30 bg-white text-[#0F4D3A] hover:bg-[#0F4D3A]/10 hover:text-[#0A3326]"
+                  }`}
+                  title={isEditing ? "Selesai mengedit" : "Edit isi file"}
+                >
+                  {isEditing ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Selesai
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => inputRef.current?.click()}
                   disabled={isParsing || isTransitioning}
@@ -220,7 +253,10 @@ export function ProjectorDisplay() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={clearFile}
+                  onClick={() => {
+                    setIsEditing(false);
+                    clearFile();
+                  }}
                   className="h-8 gap-1 border-red-500/40 bg-white px-3 text-[11px] text-red-700 hover:bg-red-500/10 hover:text-red-800"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -229,11 +265,15 @@ export function ProjectorDisplay() {
               </div>
             </div>
 
-            <div
-              ref={displayRef}
-              className="docx-content flex-1 overflow-y-auto px-6 py-8 md:px-12 md:py-12"
-              dangerouslySetInnerHTML={{ __html: fileHtml }}
-            />
+            {isEditing ? (
+              <WordEditor html={fileHtml ?? ""} onChange={updateFileHtml} />
+            ) : (
+              <div
+                ref={displayRef}
+                className="docx-content flex-1 overflow-y-auto px-6 py-8 md:px-12 md:py-12"
+                dangerouslySetInnerHTML={{ __html: fileHtml }}
+              />
+            )}
 
             {error && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-red-500/30 bg-white/90 px-4 py-2 text-xs text-red-700 backdrop-blur">

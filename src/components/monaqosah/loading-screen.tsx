@@ -10,18 +10,34 @@ export function LoadingScreen() {
   const setLoaded = useMonaqosah((s) => s.setLoaded);
   const audioEnabled = useMonaqosah((s) => s.audioEnabled);
   const [progress, setProgress] = useState(0);
-  const [stage, setStage] = useState<"intro" | "loading" | "done">("intro");
+  // "gate" = waiting for the user to click "Mulai" so the browser's
+  // autoplay policy allows audio to actually play. Without this, the
+  // AudioContext is created in "suspended" state (no sound) and the
+  // YouTube IFrame API is not allowed to play with sound.
+  const [stage, setStage] = useState<"gate" | "intro" | "loading" | "done">("gate");
 
-  // Drive Arabic orchestra music during loading.
+  // Begin audio + loading animation ONLY after a user gesture (click on
+  // the "Klik untuk Memulai" button). This is what unblocks the
+  // previously-silent AudioContext and the YouTube autoplay-with-sound.
+  const startLoading = () => {
+    if (stage !== "gate") return;
+    if (audioEnabled) {
+      initAudio();
+      setTimeout(() => startArabicMusic(), 300);
+    }
+    setStage("intro");
+  };
+
+  // Drive Arabic orchestra music during loading (only after the gate).
   useEffect(() => {
-    if (!audioEnabled) return;
+    if (stage === "gate" || !audioEnabled) return;
     initAudio();
     const t = setTimeout(() => startArabicMusic(), 300);
     return () => {
       clearTimeout(t);
       stopArabicMusic();
     };
-  }, [audioEnabled]);
+  }, [audioEnabled, stage]);
 
   useEffect(() => {
     // After 1.2s, move to loading bar.
@@ -62,21 +78,6 @@ export function LoadingScreen() {
       cancelAnimationFrame(raf);
     };
   }, [stage, setLoaded, audioEnabled]);
-
-  // Init audio on first user gesture if needed.
-  useEffect(() => {
-    const handler = () => {
-      initAudio();
-      window.removeEventListener("click", handler);
-      window.removeEventListener("keydown", handler);
-    };
-    window.addEventListener("click", handler);
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("click", handler);
-      window.removeEventListener("keydown", handler);
-    };
-  }, []);
 
   return (
     <AnimatePresence>
@@ -246,7 +247,7 @@ export function LoadingScreen() {
           <motion.div
             className="relative z-10 mb-8"
             initial={{ scale: 0, rotate: -180, opacity: 0 }}
-            animate={{ scale: 1, rotate: 0, opacity: 1 }}
+            animate={{ scale: 1, rotate: 0, opacity: stage === "gate" ? 0.9 : 1 }}
             transition={{ duration: 1.4, ease: [0.34, 1.56, 0.64, 1] }}
           >
             <motion.div
@@ -289,7 +290,7 @@ export function LoadingScreen() {
             animate={{ opacity: 1, letterSpacing: "0.3em" }}
             transition={{ delay: 0.8, duration: 1.2 }}
           >
-            MONAQOSAH
+            MUNAQOSYAH
           </motion.h1>
 
           <motion.p
@@ -305,7 +306,7 @@ export function LoadingScreen() {
           <motion.div
             className="relative z-10 w-[280px] md:w-[400px]"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: stage === "intro" ? 0 : 1, y: stage === "intro" ? 20 : 0 }}
+            animate={{ opacity: stage === "gate" || stage === "intro" ? 0 : 1, y: stage === "gate" || stage === "intro" ? 20 : 0 }}
             transition={{ duration: 0.6 }}
           >
             <div className="relative h-1 w-full rounded-full bg-[#0F4D3A]/15 overflow-hidden">
@@ -330,11 +331,26 @@ export function LoadingScreen() {
             </div>
           </motion.div>
 
+          {/* "Klik untuk Memulai" gate button — required so the browser
+              allows audio (Web Audio API + YouTube) to actually play. */}
+          {stage === "gate" && (
+            <motion.button
+              type="button"
+              onClick={startLoading}
+              className="relative z-20 mt-8 cursor-pointer rounded-full border border-[#0F4D3A]/40 bg-[#0F4D3A] px-8 py-3 text-sm md:text-base font-semibold tracking-[0.3em] uppercase text-[#F5F7F2] shadow-[0_8px_30px_rgba(15,77,58,0.35)] transition-all hover:bg-[#0A3326] hover:shadow-[0_12px_40px_rgba(15,77,58,0.5)] hover:scale-105 active:scale-95"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, duration: 0.6 }}
+            >
+              Klik untuk Memulai
+            </motion.button>
+          )}
+
           {/* Bottom hint */}
           <motion.div
             className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.4em] text-[#0F4D3A]/50 uppercase"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            animate={{ opacity: stage === "gate" ? 0 : 1 }}
             transition={{ delay: 2, duration: 1 }}
           >
             إِقْرَأْ بِاسْمِ رَبِّكَ
