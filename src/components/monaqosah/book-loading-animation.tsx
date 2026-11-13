@@ -7,20 +7,28 @@
  * being parsed. Pure CSS/SVG — no external image.
  *
  * Sequence (10s total cycle, matching the 10s forced parse window):
- *   1. Cover opens (rotateY 0° → -168°) over ~1.2s.
- *   2. TEN pages flip one-by-one (~0.65s each + tiny pause).
- *   3. Cover closes, hiding the page reset, then loops.
+ *   1. Cover opens (rotateY 0° → -168°) over ~1.2s.  → cover-open.mp3
+ *   2. TEN pages flip one-by-one (~0.65s each + tiny pause).  → pageflip.mp3 each
+ *   3. Cover closes, hiding the page reset, then loops.  → cover-close.mp3
  *
- * Color matching: the static page block on the left and every
- * flipping page use the IDENTICAL cream gradient, so when a page
- * lands on the left it blends seamlessly into the page surface
- * beneath it (no green cover bleeding through, no mismatched cream).
+ * Two-sided pages: each flipping page has a FRONT face (cream) and a
+ * BACK face (cream), built as two children of a preserve-3d wrapper.
+ * With both faces cream, when a page rotates past 90° you still see a
+ * cream page (the back face) instead of "black" / see-through to the
+ * dark cover behind it. A static cream surface sits on the right
+ * side underneath the pages, so the area a page just left is always
+ * cream — never the dark cover.
+ *
+ * Sound: pageflip.mp3 on each page turn, cover-open.mp3 on open,
+ * cover-close.mp3 on close. Audio is muted until a user gesture
+ * (browsers block autoplay with sound), then re-syncs to the cycle.
  *
  * Palette: deep pesantren green (#0F4D3A) leather cover, gold (#C9A961)
  * tooling, ivory (#F5EFE0) pages.
  */
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 interface BookLoadingAnimationProps {
   message?: string;
@@ -40,7 +48,8 @@ const COVER_CLOSE_END = 9.4; // cover fully closed
 const PAGE_RESET = 8.8; // pages snap back to 0 (hidden by closing cover)
 
 // Identical cream gradient shared by the static page block AND every
-// flipping page, so a landed page matches the surface beneath it.
+// flipping page face (front + back), so landed pages and the surface
+// beneath all read as the same cream.
 const PAGE_GRADIENT =
   "linear-gradient(90deg, #E8DFC8 0%, #F5EFE0 14%, #F5EFE0 86%, #E8DFC8 100%)";
 
@@ -50,8 +59,90 @@ const t = (s: number) => Math.min(0.999, s / CYCLE);
 export function BookLoadingAnimation({
   message = "Membaca file Word...",
 }: BookLoadingAnimationProps) {
+  // --- Sound effect scheduling, synced to the animation cycle. ---
+  // Browsers block autoplay of sound until a user gesture; we start
+  // muted and unmute on the first pointer/keyboard interaction. Each
+  // sfx is scheduled at a fixed phase of the cycle and re-fires every
+  // loop. Because the cycle is exactly CYCLE seconds, the sound stays
+  // in sync with the visuals indefinitely.
+  const pageflipRef = useRef<HTMLAudioElement | null>(null);
+  const coverOpenRef = useRef<HTMLAudioElement | null>(null);
+  const coverCloseRef = useRef<HTMLAudioElement | null>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cycleLoopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const pageflip = pageflipRef.current;
+    const coverOpen = coverOpenRef.current;
+    const coverClose = coverCloseRef.current;
+    if (!pageflip || !coverOpen || !coverClose) return;
+
+    // Start everything muted so autoplay is allowed. Unmute on the
+    // first user gesture (click/touch/keydown) anywhere on the page.
+    const enableSound = () => {
+      [pageflip, coverOpen, coverClose].forEach((a) => {
+        if (a) {
+          a.muted = false;
+          a.volume = 0.6;
+        }
+      });
+      window.removeEventListener("pointerdown", enableSound);
+      window.removeEventListener("keydown", enableSound);
+    };
+    window.addEventListener("pointerdown", enableSound);
+    window.addEventListener("keydown", enableSound);
+
+    // Schedule one full cycle of sounds. Called once per loop.
+    const scheduleCycle = () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+
+      const push = (fn: () => void, delayMs: number) => {
+        timersRef.current.push(setTimeout(fn, delayMs));
+      };
+
+      // Cover opens at t=0 (audible start of the cycle).
+      push(() => {
+        coverOpen.currentTime = 0;
+        coverOpen.play().catch(() => {});
+      }, 0);
+
+      // Each of the 10 page flips — one pageflip.mp3 per page turn.
+      for (let i = 0; i < TOTAL_PAGES; i++) {
+        const flipStart = PAGE_START + i * (PAGE_FLIP + PAGE_GAP);
+        push(() => {
+          pageflip.currentTime = 0;
+          pageflip.play().catch(() => {});
+        }, flipStart * 1000);
+      }
+
+      // Cover closes near the end of the cycle.
+      push(() => {
+        coverClose.currentTime = 0;
+        coverClose.play().catch(() => {});
+      }, COVER_CLOSE_START * 1000);
+
+      // Re-schedule the next cycle.
+      cycleLoopRef.current = setTimeout(scheduleCycle, CYCLE * 1000);
+    };
+
+    scheduleCycle();
+
+    return () => {
+      window.removeEventListener("pointerdown", enableSound);
+      window.removeEventListener("keydown", enableSound);
+      timersRef.current.forEach(clearTimeout);
+      if (cycleLoopRef.current) clearTimeout(cycleLoopRef.current);
+    };
+  }, []);
+
   return (
     <div className="relative flex flex-col items-center justify-center">
+      {/* Hidden audio elements for the synced sound effects. */}
+      <audio ref={pageflipRef} src="/pageflip.mp3" preload="auto" muted />
+      <audio ref={coverOpenRef} src="/cover-open.mp3" preload="auto" muted />
+      <audio ref={coverCloseRef} src="/cover-close.mp3" preload="auto" muted />
+
       {/* Pulsing ambient glow behind the book (very slow) */}
       <motion.div
         className="absolute -z-10 h-[340px] w-[340px] rounded-full"
@@ -165,11 +256,34 @@ export function BookLoadingAnimation({
             <PageLines />
           </div>
 
-          {/* ---------------- 10 flipping pages ----------------------- */}
-          {/* Each page turns around the spine, one after another, then
-              they all reset (hidden behind the closing cover). Uses the
-              SAME PAGE_GRADIENT as the left page block so a landed page
-              blends into the surface beneath it — no color mismatch. */}
+          {/* ---------------- Right-side page surface ----------------- */}
+          {/* A STATIC cream page sitting on the right half, underneath
+              all the flipping pages. When a page lifts off the right
+              side to turn, this cream surface shows through — so the
+              area is never dark/cover-green. Pages pile onto it on the
+              right (their resting 0° state) until they flip. */}
+          <div
+            className="absolute"
+            style={{
+              width: COVER_W - 4,
+              height: COVER_H - 6,
+              left: COVER_W - 2,
+              top: 3,
+              background: PAGE_GRADIENT,
+              borderRadius: "0 3px 3px 0",
+              boxShadow: "inset 0 0 8px rgba(120,100,60,0.10)",
+            }}
+          >
+            <PageLines />
+          </div>
+
+          {/* ---------------- 10 flipping pages (two-sided) ----------- */}
+          {/* Each page is a preserve-3d wrapper with a FRONT face and a
+              BACK face, both cream. With both faces cream, a page that
+              has rotated past 90° still shows a cream page (its back
+              face) rather than being see-through to the dark cover.
+              They turn one after another, then all reset (hidden
+              behind the closing cover). */}
           {Array.from({ length: TOTAL_PAGES }).map((_, i) => {
             const flipStart = PAGE_START + i * (PAGE_FLIP + PAGE_GAP);
             const flipEnd = flipStart + PAGE_FLIP;
@@ -184,10 +298,6 @@ export function BookLoadingAnimation({
                   top: 3,
                   transformOrigin: "left center",
                   transformStyle: "preserve-3d",
-                  borderRadius: "0 3px 3px 0",
-                  background: PAGE_GRADIENT,
-                  boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
-                  backfaceVisibility: "hidden",
                 }}
                 animate={{
                   rotateY: [0, 0, -168, -168, 0],
@@ -205,14 +315,46 @@ export function BookLoadingAnimation({
                   ease: "easeInOut",
                 }}
               >
-                <PageLines />
+                {/* FRONT face (visible at rotateY 0°) */}
                 <div
-                  className="pointer-events-none absolute inset-y-0 right-0 w-3"
+                  className="absolute inset-0"
                   style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(80,65,30,0.10))",
+                    background: PAGE_GRADIENT,
+                    borderRadius: "0 3px 3px 0",
+                    boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
+                    backfaceVisibility: "hidden",
                   }}
-                />
+                >
+                  <PageLines />
+                  <div
+                    className="pointer-events-none absolute inset-y-0 right-0 w-3"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(80,65,30,0.10))",
+                    }}
+                  />
+                </div>
+                {/* BACK face (visible once rotateY passes 90°), so the
+                    back of a turning page is also cream — never dark. */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: PAGE_GRADIENT,
+                    borderRadius: "3px 0 0 3px",
+                    boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
+                    backfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)",
+                  }}
+                >
+                  <PageLines />
+                  <div
+                    className="pointer-events-none absolute inset-y-0 left-0 w-3"
+                    style={{
+                      background:
+                        "linear-gradient(270deg, transparent, rgba(80,65,30,0.10))",
+                    }}
+                  />
+                </div>
               </motion.div>
             );
           })}
