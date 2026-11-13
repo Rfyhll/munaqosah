@@ -40,7 +40,16 @@ export function ProjectorDisplay() {
       }
       setIsParsing(true);
       try {
-        const html = await parseDocxToHtml(file);
+        // Force a MINIMUM parse duration so the elegant book-opening
+        // animation always plays in full before the Word content
+        // appears. Without this floor, parseDocxToHtml finishes in a
+        // second or two and the book animation barely shows.
+        const MIN_PARSE_MS = 25000; // 25s — the book needs this long
+        const parsePromise = parseDocxToHtml(file);
+        const delayPromise = new Promise((resolve) =>
+          setTimeout(resolve, MIN_PARSE_MS),
+        );
+        const [html] = await Promise.all([parsePromise, delayPromise]);
         if (!html || html.trim().length === 0) {
           setError(
             "File Word kosong atau tidak bisa dibaca. Pastikan file berisi teks.",

@@ -28,14 +28,17 @@ interface BookLoadingAnimationProps {
 const COVER_W = 150; // half-book width (each cover)
 const COVER_H = 200; // book height
 const TOTAL_PAGES = 10;
-const CYCLE = 24; // seconds per full loop
-const COVER_OPEN_END = 3.3; // cover finishes opening at 3.3s
-const PAGE_FLIP = 1.8; // seconds a single page takes to turn
-const PAGE_GAP = 0.1; // pause between pages
-const PAGE_START = 3.3; // first page starts flipping right after cover
-const COVER_CLOSE_START = 22.5; // cover starts closing
-const COVER_CLOSE_END = 23.5; // cover fully closed
-const PAGE_RESET = 23.0; // pages snap back to 0 (hidden by closing cover)
+const CYCLE = 29; // seconds per full loop — matches the forced parse
+                  // window so the book opens, all 10 pages turn, and the
+                  // cover closes before the Word content appears.
+const COVER_OPEN_END = 3.6; // cover finishes opening at 3.6s (slower)
+const PAGE_FLIP = 2.2; // seconds a single page takes to turn (slower)
+const PAGE_GAP = 0.15; // pause between pages
+const PAGE_START = 3.6; // first page starts flipping right after cover
+// 10 pages: 10*2.2 + 9*0.15 = 23.5s -> last page ends ~27.1s
+const COVER_CLOSE_START = 27.2; // cover starts closing (after all pages)
+const COVER_CLOSE_END = 28.4; // cover fully closed
+const PAGE_RESET = 27.7; // pages snap back to 0 (hidden by closing cover)
 
 /** Convert a cycle-seconds value to a fraction of CYCLE for `times`. */
 const t = (s: number) => Math.min(0.999, s / CYCLE);
