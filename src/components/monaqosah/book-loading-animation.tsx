@@ -3,162 +3,321 @@
 /**
  * BookLoadingAnimation
  *
- * A loading animation inspired by the "Book Loading Animation" YouTube
- * tutorials: a book whose pages flip open in 3D (rotateY) while a soft
- * spinner ring rotates around it and a glow pulses behind it.
+ * An elegant "book opening" loader shown while a dragged Word file is
+ * being parsed. Pure CSS/SVG — no external image.
  *
- * Uses the book image at /book.png (uploaded by the user) as the book
- * cover/body. While the file is being parsed (isParsing = true) the
- * book "opens" its pages repeatedly, signaling that the document is
- * being read.
+ * Sequence (all slow & deliberate, ~elegant rather than cartoonish):
+ *   1. On mount the book is CLOSED (front cover facing the viewer).
+ *   2. The front cover slowly opens (rotateY 0° → -168°) over ~1.4s,
+ *      revealing cream pages underneath. This is the "opening book" moment.
+ *   3. Once open, the visible pages flip one at a time, slowly (~2.2s
+ *      each with a short pause), like a reader turning pages.
+ *   4. A thin gold bookmark ribbon hangs from the top edge and sways
+ *      very gently the whole time.
+ *   5. The whole book floats up/down subtly + a soft green glow pulses
+ *      behind it.
  *
- * The animation is pure framer-motion + Tailwind, no external assets
- * other than the book image.
+ * Palette: deep pesantren green (#0F4D3A) leather cover, gold (#C9A961)
+ * tooling border, ivory (#F5EFE0) pages, muted ink lines.
  */
 
 import { motion } from "framer-motion";
-import Image from "next/image";
 
 interface BookLoadingAnimationProps {
-  /** Optional message shown under the book. */
   message?: string;
 }
+
+const COVER_W = 150; // half-book width (each cover)
+const COVER_H = 200; // book height
 
 export function BookLoadingAnimation({
   message = "Membaca file Word...",
 }: BookLoadingAnimationProps) {
   return (
     <div className="relative flex flex-col items-center justify-center">
-      {/* Pulsing radial glow behind the book */}
+      {/* Pulsing ambient glow behind the book */}
       <motion.div
-        className="absolute inset-0 -z-10"
+        className="absolute -z-10 h-[320px] w-[320px] rounded-full"
         animate={{
-          opacity: [0.3, 0.7, 0.3],
-          scale: [0.9, 1.1, 0.9],
+          opacity: [0.25, 0.5, 0.25],
+          scale: [0.92, 1.06, 0.92],
         }}
         transition={{
-          duration: 2.4,
+          duration: 3.2,
           repeat: Infinity,
           ease: "easeInOut",
         }}
         style={{
           background:
-            "radial-gradient(circle at 50% 50%, rgba(15,77,58,0.25), transparent 60%)",
+            "radial-gradient(circle at 50% 50%, rgba(15,77,58,0.30), transparent 62%)",
         }}
       />
 
-      {/* Rotating dashed ring (the "loading" indicator) */}
+      {/* Slow rotating hairline ring (the loading indicator) */}
       <motion.div
         className="absolute -z-10"
         animate={{ rotate: 360 }}
         transition={{
-          duration: 3,
+          duration: 9,
           repeat: Infinity,
           ease: "linear",
         }}
       >
-        <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+        <svg width="280" height="280" viewBox="0 0 280 280" fill="none">
           <circle
-            cx="110"
-            cy="110"
-            r="104"
+            cx="140"
+            cy="140"
+            r="132"
             stroke="#0F4D3A"
-            strokeWidth="2"
-            strokeDasharray="6 14"
+            strokeWidth="1"
+            strokeDasharray="1 10"
             strokeLinecap="round"
-            opacity="0.4"
+            opacity="0.35"
           />
           <circle
-            cx="110"
-            cy="110"
-            r="92"
-            stroke="#1B6B4F"
-            strokeWidth="1.5"
-            strokeDasharray="2 18"
+            cx="140"
+            cy="140"
+            r="120"
+            stroke="#C9A961"
+            strokeWidth="0.75"
+            strokeDasharray="1 16"
             strokeLinecap="round"
-            opacity="0.3"
+            opacity="0.25"
           />
         </svg>
       </motion.div>
 
-      {/* The book itself, with a 3D page-flip animation */}
-      <div
+      {/* The book, viewed from slightly above. */}
+      <motion.div
         className="relative"
-        style={{ perspective: "1000px", width: 140, height: 140 }}
+        style={{
+          width: COVER_W * 2,
+          height: COVER_H,
+          perspective: "1400px",
+        }}
+        animate={{ y: [0, -6, 0] }}
+        transition={{
+          duration: 4,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
       >
-        {/* Book body (the user's uploaded book image) */}
+        {/* Shared "spine" tilt so the book reads as 3D, not flat. */}
         <motion.div
           className="absolute inset-0"
-          animate={{
-            y: [0, -8, 0],
-            rotateZ: [-2, 2, -2],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          style={{ transformStyle: "preserve-3d" }}
-        >
-          <Image
-            src="/book.png"
-            alt="Buku"
-            width={140}
-            height={140}
-            className="h-full w-full object-contain drop-shadow-[0_12px_24px_rgba(15,77,58,0.35)]"
-            priority
-          />
-        </motion.div>
-
-        {/* A flipping "page" overlay on the right side of the book.
-            It rotates around the book's spine (left edge) repeatedly,
-            like a page being turned — this is the signature move of
-            the YouTube "book loading animation" tutorials. */}
-        <motion.div
-          className="absolute left-1/2 top-1 h-[88%] w-1/2 origin-left"
           style={{
             transformStyle: "preserve-3d",
-            // Slight gradient that looks like a sheet of paper edge-on
-            background:
-              "linear-gradient(90deg, rgba(255,250,235,0.92), rgba(245,235,200,0.85))",
-            boxShadow: "0 4px 14px rgba(120,100,60,0.25)",
-            borderRadius: "0 6px 6px 0",
-          }}
-          animate={{
-            rotateY: [0, -160, -180],
-          }}
-          transition={{
-            duration: 2.2,
-            repeat: Infinity,
-            ease: "easeInOut",
-            repeatDelay: 0.4,
+            transform: "rotateX(-18deg)",
           }}
         >
-          {/* Subtle lines on the page to suggest text */}
-          <div className="absolute inset-2 flex flex-col gap-1.5">
-            <div className="h-0.5 w-3/4 rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-full rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-5/6 rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-full rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-2/3 rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-full rounded bg-[#0F4D3A]/15" />
-            <div className="h-0.5 w-4/5 rounded bg-[#0F4D3A]/15" />
+          {/* ---------------- Back cover (static, sits flat) ----------- */}
+          <div
+            className="absolute left-0 top-0"
+            style={{
+              width: COVER_W,
+              height: COVER_H,
+              transform: "translateX(0) rotateY(0deg)",
+              transformOrigin: "right center",
+              background:
+                "linear-gradient(135deg, #0F4D3A 0%, #0A3326 60%, #06241A 100%)",
+              borderRadius: "4px 0 0 4px",
+              boxShadow:
+                "inset -6px 0 10px rgba(0,0,0,0.45), 0 14px 30px rgba(15,77,58,0.30)",
+            }}
+          >
+            {/* gold tooled border on back cover */}
+            <div
+              className="absolute inset-3 rounded-sm border"
+              style={{ borderColor: "rgba(201,169,97,0.35)" }}
+            />
           </div>
+
+          {/* ---------------- Page block (left side) ------------------- */}
+          {/* A thin stack of cream pages sitting on the back cover. */}
+          <div
+            className="absolute left-0 top-0"
+            style={{
+              width: COVER_W - 4,
+              height: COVER_H - 6,
+              transform: "translateX(2px) translateY(3px)",
+              background:
+                "linear-gradient(90deg, #E8DFC8 0%, #F5EFE0 14%, #F5EFE0 86%, #E8DFC8 100%)",
+              borderRadius: "2px 0 0 2px",
+              boxShadow: "inset 0 0 8px rgba(120,100,60,0.12)",
+            }}
+          >
+            {/* faint horizontal text lines on the static page */}
+            <PageLines />
+          </div>
+
+          {/* ---------------- Flipping pages (turn one by one) --------- */}
+          {/* Each page turns slowly around the spine (left edge of the
+              right half) and settles onto the left side, mimicking a
+              reader turning pages. Staggered so they turn in sequence. */}
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={`flip-${i}`}
+              className="absolute"
+              style={{
+                width: COVER_W - 4,
+                height: COVER_H - 6,
+                left: COVER_W - 2,
+                top: 3,
+                transformOrigin: "left center",
+                transformStyle: "preserve-3d",
+                borderRadius: "0 3px 3px 0",
+                background:
+                  "linear-gradient(90deg, #E8DFC8 0%, #FBF6E9 14%, #FBF6E9 86%, #E8DFC8 100%)",
+                boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
+                backfaceVisibility: "hidden",
+              }}
+              animate={{
+                rotateY: [0, 0, -168, -168, 0],
+              }}
+              transition={{
+                duration: 6.6,
+                times: [
+                  i * 0.12,
+                  0.28 + i * 0.12,
+                  0.48 + i * 0.12,
+                  0.5 + i * 0.12,
+                  0.99,
+                ],
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <PageLines />
+              {/* subtle page-edge shadow on the turning side */}
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 w-3"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(80,65,30,0.10))",
+                }}
+              />
+            </motion.div>
+          ))}
+
+          {/* ---------------- Front cover (opens on mount) ------------- */}
+          <motion.div
+            className="absolute"
+            style={{
+              width: COVER_W,
+              height: COVER_H,
+              left: COVER_W - 2,
+              top: 0,
+              transformOrigin: "left center",
+              transformStyle: "preserve-3d",
+              background:
+                "linear-gradient(135deg, #0F4D3A 0%, #0A3326 60%, #06241A 100%)",
+              borderRadius: "0 4px 4px 0",
+              boxShadow:
+                "inset 6px 0 10px rgba(0,0,0,0.45), 0 14px 30px rgba(15,77,58,0.30)",
+            }}
+            animate={{ rotateY: [0, -168, -168, -168] }}
+            transition={{
+              duration: 2.6,
+              times: [0, 0.55, 0.7, 1],
+              repeat: Infinity,
+              repeatDelay: 0.2,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          >
+            {/* gold tooled border + emblem on the front cover */}
+            <div
+              className="absolute inset-3 rounded-sm border"
+              style={{ borderColor: "rgba(201,169,97,0.45)" }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="22"
+                  stroke="#C9A961"
+                  strokeWidth="1"
+                  opacity="0.7"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="16"
+                  stroke="#C9A961"
+                  strokeWidth="0.75"
+                  opacity="0.5"
+                />
+                <path
+                  d="M32 18 L36 30 L48 32 L36 34 L32 46 L28 34 L16 32 L28 30 Z"
+                  fill="#C9A961"
+                  opacity="0.75"
+                />
+              </svg>
+            </div>
+            {/* spine hinge highlight */}
+            <div
+              className="absolute inset-y-0 left-0 w-1.5"
+              style={{
+                background:
+                  "linear-gradient(90deg, rgba(201,169,97,0.5), transparent)",
+              }}
+            />
+          </motion.div>
+
+          {/* ---------------- Gold bookmark ribbon ------------------ */}
+          <motion.div
+            className="absolute"
+            style={{
+              left: COVER_W + 18,
+              top: -6,
+              width: 8,
+              height: 90,
+              transformOrigin: "top center",
+              background: "linear-gradient(180deg, #C9A961, #A88845)",
+              boxShadow: "0 4px 8px rgba(80,65,30,0.25)",
+              clipPath:
+                "polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%)",
+            }}
+            animate={{ rotate: [-2, 2, -2] }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
         </motion.div>
-      </div>
+      </motion.div>
 
       {/* Message under the book */}
       <motion.p
-        className="mt-8 text-xs font-medium tracking-[0.3em] text-[#0F4D3A] uppercase"
-        animate={{ opacity: [0.5, 1, 0.5] }}
+        className="mt-10 text-[11px] font-medium tracking-[0.4em] text-[#0F4D3A] uppercase"
+        animate={{ opacity: [0.45, 1, 0.45] }}
         transition={{
-          duration: 1.6,
+          duration: 2.2,
           repeat: Infinity,
           ease: "easeInOut",
         }}
       >
         {message}
       </motion.p>
+    </div>
+  );
+}
+
+/** Faint horizontal lines that suggest printed text on a page. */
+function PageLines() {
+  return (
+    <div className="absolute inset-5 flex flex-col gap-2">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-px rounded-full bg-[#0F4D3A]"
+          style={{
+            width: i === 2 ? "60%" : i === 5 ? "75%" : "100%",
+            opacity: 0.18,
+          }}
+        />
+      ))}
     </div>
   );
 }
