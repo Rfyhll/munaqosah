@@ -9,12 +9,12 @@ import {
   UploadCloud,
   FileText,
   X,
-  Loader2,
   AlertCircle,
   Pencil,
   Check,
 } from "lucide-react";
 import { WordEditor } from "@/components/monaqosah/word-editor";
+import { BookLoadingAnimation } from "@/components/monaqosah/book-loading-animation";
 
 export function ProjectorDisplay() {
   const { fileHtml, fileName, setFile, clearFile, updateFileHtml } =
@@ -154,10 +154,10 @@ export function ProjectorDisplay() {
                   repeat: Infinity,
                   ease: "easeInOut",
                 }}
-                className="relative z-10 mb-6"
+                className="relative z-10 mb-6 flex h-[260px] items-center justify-center"
               >
                 {isParsing ? (
-                  <Loader2 className="h-20 w-20 animate-spin text-[#0F4D3A]" />
+                  <BookLoadingAnimation message="Membaca file Word..." />
                 ) : (
                   <UploadCloud className="h-20 w-20 text-[#0F4D3A] drop-shadow-[0_0_20px_rgba(15,77,58,0.3)]" />
                 )}
