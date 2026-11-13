@@ -3,22 +3,20 @@
 /**
  * BookLoadingAnimation
  *
- * An elegant "book opening" loader shown while a dragged Word file is
+ * Elegant "book opening" loader shown while a dragged Word file is
  * being parsed. Pure CSS/SVG — no external image.
  *
- * Sequence (all slow & deliberate, ~elegant rather than cartoonish):
- *   1. On mount the book is CLOSED (front cover facing the viewer).
- *   2. The front cover slowly opens (rotateY 0° → -168°) over ~1.4s,
- *      revealing cream pages underneath. This is the "opening book" moment.
- *   3. Once open, the visible pages flip one at a time, slowly (~2.2s
- *      each with a short pause), like a reader turning pages.
- *   4. A thin gold bookmark ribbon hangs from the top edge and sways
- *      very gently the whole time.
- *   5. The whole book floats up/down subtly + a soft green glow pulses
- *      behind it.
+ * Sequence (all SLOW & deliberate):
+ *   1. Cover slowly opens (rotateY 0° → -168°) over ~3s.
+ *   2. TEN pages flip one-by-one, slowly (~1.8s each flip + short
+ *      pause), like a reader deliberately turning each page.
+ *   3. Once all 10 are turned, the cover slowly closes, hiding the
+ *      page reset, then the cycle loops.
+ *
+ * Total cycle: 24s — everything moves at a calm, ceremonial pace.
  *
  * Palette: deep pesantren green (#0F4D3A) leather cover, gold (#C9A961)
- * tooling border, ivory (#F5EFE0) pages, muted ink lines.
+ * tooling, ivory (#F5EFE0) pages.
  */
 
 import { motion } from "framer-motion";
@@ -29,21 +27,33 @@ interface BookLoadingAnimationProps {
 
 const COVER_W = 150; // half-book width (each cover)
 const COVER_H = 200; // book height
+const TOTAL_PAGES = 10;
+const CYCLE = 24; // seconds per full loop
+const COVER_OPEN_END = 3.3; // cover finishes opening at 3.3s
+const PAGE_FLIP = 1.8; // seconds a single page takes to turn
+const PAGE_GAP = 0.1; // pause between pages
+const PAGE_START = 3.3; // first page starts flipping right after cover
+const COVER_CLOSE_START = 22.5; // cover starts closing
+const COVER_CLOSE_END = 23.5; // cover fully closed
+const PAGE_RESET = 23.0; // pages snap back to 0 (hidden by closing cover)
+
+/** Convert a cycle-seconds value to a fraction of CYCLE for `times`. */
+const t = (s: number) => Math.min(0.999, s / CYCLE);
 
 export function BookLoadingAnimation({
   message = "Membaca file Word...",
 }: BookLoadingAnimationProps) {
   return (
     <div className="relative flex flex-col items-center justify-center">
-      {/* Pulsing ambient glow behind the book */}
+      {/* Pulsing ambient glow behind the book (very slow) */}
       <motion.div
-        className="absolute -z-10 h-[320px] w-[320px] rounded-full"
+        className="absolute -z-10 h-[340px] w-[340px] rounded-full"
         animate={{
-          opacity: [0.25, 0.5, 0.25],
-          scale: [0.92, 1.06, 0.92],
+          opacity: [0.2, 0.45, 0.2],
+          scale: [0.9, 1.08, 0.9],
         }}
         transition={{
-          duration: 3.2,
+          duration: 6,
           repeat: Infinity,
           ease: "easeInOut",
         }}
@@ -58,29 +68,29 @@ export function BookLoadingAnimation({
         className="absolute -z-10"
         animate={{ rotate: 360 }}
         transition={{
-          duration: 9,
+          duration: 16,
           repeat: Infinity,
           ease: "linear",
         }}
       >
-        <svg width="280" height="280" viewBox="0 0 280 280" fill="none">
+        <svg width="300" height="300" viewBox="0 0 300 300" fill="none">
           <circle
-            cx="140"
-            cy="140"
-            r="132"
+            cx="150"
+            cy="150"
+            r="142"
             stroke="#0F4D3A"
             strokeWidth="1"
-            strokeDasharray="1 10"
+            strokeDasharray="1 12"
             strokeLinecap="round"
             opacity="0.35"
           />
           <circle
-            cx="140"
-            cy="140"
-            r="120"
+            cx="150"
+            cy="150"
+            r="130"
             stroke="#C9A961"
             strokeWidth="0.75"
-            strokeDasharray="1 16"
+            strokeDasharray="1 18"
             strokeLinecap="round"
             opacity="0.25"
           />
@@ -93,11 +103,11 @@ export function BookLoadingAnimation({
         style={{
           width: COVER_W * 2,
           height: COVER_H,
-          perspective: "1400px",
+          perspective: "1600px",
         }}
-        animate={{ y: [0, -6, 0] }}
+        animate={{ y: [0, -5, 0] }}
         transition={{
-          duration: 4,
+          duration: 6,
           repeat: Infinity,
           ease: "easeInOut",
         }}
@@ -125,7 +135,6 @@ export function BookLoadingAnimation({
                 "inset -6px 0 10px rgba(0,0,0,0.45), 0 14px 30px rgba(15,77,58,0.30)",
             }}
           >
-            {/* gold tooled border on back cover */}
             <div
               className="absolute inset-3 rounded-sm border"
               style={{ borderColor: "rgba(201,169,97,0.35)" }}
@@ -133,7 +142,6 @@ export function BookLoadingAnimation({
           </div>
 
           {/* ---------------- Page block (left side) ------------------- */}
-          {/* A thin stack of cream pages sitting on the back cover. */}
           <div
             className="absolute left-0 top-0"
             style={{
@@ -146,60 +154,61 @@ export function BookLoadingAnimation({
               boxShadow: "inset 0 0 8px rgba(120,100,60,0.12)",
             }}
           >
-            {/* faint horizontal text lines on the static page */}
             <PageLines />
           </div>
 
-          {/* ---------------- Flipping pages (turn one by one) --------- */}
-          {/* Each page turns slowly around the spine (left edge of the
-              right half) and settles onto the left side, mimicking a
-              reader turning pages. Staggered so they turn in sequence. */}
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={`flip-${i}`}
-              className="absolute"
-              style={{
-                width: COVER_W - 4,
-                height: COVER_H - 6,
-                left: COVER_W - 2,
-                top: 3,
-                transformOrigin: "left center",
-                transformStyle: "preserve-3d",
-                borderRadius: "0 3px 3px 0",
-                background:
-                  "linear-gradient(90deg, #E8DFC8 0%, #FBF6E9 14%, #FBF6E9 86%, #E8DFC8 100%)",
-                boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
-                backfaceVisibility: "hidden",
-              }}
-              animate={{
-                rotateY: [0, 0, -168, -168, 0],
-              }}
-              transition={{
-                duration: 6.6,
-                times: [
-                  i * 0.12,
-                  0.28 + i * 0.12,
-                  0.48 + i * 0.12,
-                  0.5 + i * 0.12,
-                  0.99,
-                ],
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <PageLines />
-              {/* subtle page-edge shadow on the turning side */}
-              <div
-                className="pointer-events-none absolute inset-y-0 right-0 w-3"
+          {/* ---------------- 10 flipping pages ----------------------- */}
+          {/* Each page turns slowly around the spine, one after another,
+              then they all reset (hidden behind the closing cover). */}
+          {Array.from({ length: TOTAL_PAGES }).map((_, i) => {
+            const flipStart = PAGE_START + i * (PAGE_FLIP + PAGE_GAP);
+            const flipEnd = flipStart + PAGE_FLIP;
+            return (
+              <motion.div
+                key={`flip-${i}`}
+                className="absolute"
                 style={{
+                  width: COVER_W - 4,
+                  height: COVER_H - 6,
+                  left: COVER_W - 2,
+                  top: 3,
+                  transformOrigin: "left center",
+                  transformStyle: "preserve-3d",
+                  borderRadius: "0 3px 3px 0",
                   background:
-                    "linear-gradient(90deg, transparent, rgba(80,65,30,0.10))",
+                    "linear-gradient(90deg, #E8DFC8 0%, #FBF6E9 14%, #FBF6E9 86%, #E8DFC8 100%)",
+                  boxShadow: "0 6px 14px rgba(80,65,30,0.18)",
+                  backfaceVisibility: "hidden",
                 }}
-              />
-            </motion.div>
-          ))}
+                animate={{
+                  rotateY: [0, 0, -168, -168, 0],
+                }}
+                transition={{
+                  duration: CYCLE,
+                  times: [
+                    0,
+                    t(flipStart),
+                    t(flipEnd),
+                    t(PAGE_RESET - 0.05),
+                    0.998,
+                  ],
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                <PageLines />
+                <div
+                  className="pointer-events-none absolute inset-y-0 right-0 w-3"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(80,65,30,0.10))",
+                  }}
+                />
+              </motion.div>
+            );
+          })}
 
-          {/* ---------------- Front cover (opens on mount) ------------- */}
+          {/* ---------------- Front cover (opens then closes) --------- */}
           <motion.div
             className="absolute"
             style={{
@@ -215,13 +224,14 @@ export function BookLoadingAnimation({
               boxShadow:
                 "inset 6px 0 10px rgba(0,0,0,0.45), 0 14px 30px rgba(15,77,58,0.30)",
             }}
-            animate={{ rotateY: [0, -168, -168, -168] }}
+            animate={{
+              rotateY: [0, -168, -168, 0],
+            }}
             transition={{
-              duration: 2.6,
-              times: [0, 0.55, 0.7, 1],
+              duration: CYCLE,
+              times: [0, t(COVER_OPEN_END), t(COVER_CLOSE_START), t(COVER_CLOSE_END)],
               repeat: Infinity,
-              repeatDelay: 0.2,
-              ease: [0.22, 1, 0.36, 1],
+              ease: [0.4, 0, 0.2, 1],
             }}
           >
             {/* gold tooled border + emblem on the front cover */}
@@ -278,9 +288,9 @@ export function BookLoadingAnimation({
               clipPath:
                 "polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%)",
             }}
-            animate={{ rotate: [-2, 2, -2] }}
+            animate={{ rotate: [-1.5, 1.5, -1.5] }}
             transition={{
-              duration: 4,
+              duration: 6,
               repeat: Infinity,
               ease: "easeInOut",
             }}
@@ -288,12 +298,12 @@ export function BookLoadingAnimation({
         </motion.div>
       </motion.div>
 
-      {/* Message under the book */}
+      {/* Message under the book (very slow fade) */}
       <motion.p
         className="mt-10 text-[11px] font-medium tracking-[0.4em] text-[#0F4D3A] uppercase"
         animate={{ opacity: [0.45, 1, 0.45] }}
         transition={{
-          duration: 2.2,
+          duration: 3.2,
           repeat: Infinity,
           ease: "easeInOut",
         }}
