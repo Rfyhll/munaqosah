@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import {
   startMcMusic,
   stopArabicMusic,
-  initAudio,
 } from "@/lib/arabic-music";
 
 interface MCScreenProps {
@@ -19,27 +18,23 @@ interface MCScreenProps {
 export function MCScreen({ visible, onClose }: MCScreenProps) {
   const [musicOn, setMusicOn] = useState(true);
 
-  // Start/stop Arabic music when screen visibility changes.
+  // Stop the music whenever the MC screen closes. Starting the music
+  // happens directly inside the click handler in SiteHeader (the button
+  // that opens this screen) — that is required because YouTube's
+  // autoplay-with-sound ONLY works when playVideo() is called inside a
+  // real user gesture. A useEffect that runs after render is NOT a
+  // gesture, so calling startMcMusic() here would be blocked.
   useEffect(() => {
-    if (visible) {
-      initAudio();
-      // Small delay to let audio context initialize.
-      const t = setTimeout(() => {
-        if (musicOn) startMcMusic();
-      }, 200);
-      return () => {
-        clearTimeout(t);
-        stopArabicMusic();
-      };
-    } else {
+    if (!visible) {
       stopArabicMusic();
     }
-  }, [visible, musicOn]);
+  }, [visible]);
 
   const toggleMusic = () => {
     const next = !musicOn;
     setMusicOn(next);
     if (next) {
+      // Called inside the click gesture — OK to play.
       startMcMusic();
     } else {
       stopArabicMusic();
@@ -225,12 +220,11 @@ export function MCScreen({ visible, onClose }: MCScreenProps) {
               className="drop-shadow-[0_10px_40px_rgba(15,77,58,0.3)]"
             >
               <Image
-                src="/OIP.jpg"
+                src="/OIP.png"
                 alt="Logo Bahtra"
                 width={280}
                 height={280}
                 priority
-                className="rounded-full"
               />
             </motion.div>
 

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeX, Mic2 } from "lucide-react";
 import { useMonaqosah } from "@/store/monaqosah";
-import { startArabicMusic, stopArabicMusic, initAudio } from "@/lib/arabic-music";
+import { startArabicMusic, startMcMusic, stopArabicMusic, initAudio } from "@/lib/arabic-music";
 
 export function SiteHeader() {
   const { audioEnabled, toggleAudio, mcScreenVisible, setMcScreenVisible } =
@@ -22,6 +22,19 @@ export function SiteHeader() {
     }
   };
 
+  // Open/close the MC screen. Opening is a user gesture, so we start
+  // the MC music DIRECTLY here (not in a useEffect) — YouTube only
+  // allows autoplay-with-sound when playVideo() runs inside a gesture.
+  const handleToggleMc = () => {
+    const next = !mcScreenVisible;
+    setMcScreenVisible(next);
+    if (next) {
+      startMcMusic();
+    } else {
+      stopArabicMusic();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-[#0F4D3A]/20 bg-[#0F4D3A] backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
@@ -33,11 +46,10 @@ export function SiteHeader() {
             className="drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]"
           >
             <Image
-              src="/OIP.jpg"
+              src="/OIP.png"
               alt="Logo Bahtra"
               width={48}
               height={48}
-              className="rounded-full"
             />
           </motion.div>
           <div className="leading-tight">
@@ -69,7 +81,7 @@ export function SiteHeader() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setMcScreenVisible(!mcScreenVisible)}
+            onClick={handleToggleMc}
             className={`gap-2 border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white ${
               mcScreenVisible ? "bg-white/15" : ""
             }`}

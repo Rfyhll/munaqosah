@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useMonaqosah } from "@/store/monaqosah";
-import { playTick, initAudio, startArabicMusic, stopArabicMusic } from "@/lib/arabic-music";
+import { playTick, startArabicMusic, stopArabicMusic } from "@/lib/arabic-music";
 
 export function LoadingScreen() {
   const setLoaded = useMonaqosah((s) => s.setLoaded);
@@ -17,24 +17,29 @@ export function LoadingScreen() {
   const [stage, setStage] = useState<"gate" | "intro" | "loading" | "done">("gate");
 
   // Begin audio + loading animation ONLY after a user gesture (click on
-  // the "Klik untuk Memulai" button). This is what unblocks the
-  // previously-silent AudioContext and the YouTube autoplay-with-sound.
+  // the "Klik untuk Memulai" button). This click is what unblocks the
+  // previously-silent AudioContext AND lets the YouTube IFrame play
+  // with sound: startArabicMusic() creates the hidden iframe inside
+  // this very gesture, which is the only way browsers allow
+  // autoplay-with-sound afterwards.
   const startLoading = () => {
     if (stage !== "gate") return;
     if (audioEnabled) {
-      initAudio();
-      setTimeout(() => startArabicMusic(), 300);
+      // Call inside the gesture — this creates the iframe + player and
+      // immediately starts playback with sound.
+      startArabicMusic();
     }
     setStage("intro");
   };
 
-  // Drive Arabic orchestra music during loading (only after the gate).
+  // Keep the music going as the loading stages progress. The player is
+  // already created + playing from startLoading(); this effect just
+  // makes sure we restart it if React unmounts/remounts the component.
   useEffect(() => {
     if (stage === "gate" || !audioEnabled) return;
-    initAudio();
-    const t = setTimeout(() => startArabicMusic(), 300);
+    // Player already preloaded by the gate click; just nudge it.
+    startArabicMusic();
     return () => {
-      clearTimeout(t);
       stopArabicMusic();
     };
   }, [audioEnabled, stage]);
@@ -262,7 +267,7 @@ export function LoadingScreen() {
               className="drop-shadow-[0_0_30px_rgba(15,77,58,0.3)]"
             >
               <Image
-                src="/OIP.jpg"
+                src="/OIP.png"
                 alt="Logo Bahtra"
                 width={200}
                 height={200}

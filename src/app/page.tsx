@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMonaqosah, hydrateFromStorage } from "@/store/monaqosah";
 import { LoadingScreen } from "@/components/monaqosah/loading-screen";
 import { SiteHeader } from "@/components/monaqosah/site-header";
@@ -9,6 +9,20 @@ import { MCScreen } from "@/components/monaqosah/mc-screen";
 
 export default function HomePage() {
   const { isLoaded, mcScreenVisible, setMcScreenVisible } = useMonaqosah();
+  // Counter that bumps every time the MC screen is opened. Used as the
+  // React `key` on <MCScreen> so the component re-mounts fresh each
+  // time — that resets its internal `musicOn` toggle back to `true`
+  // (default) without calling setState inside an effect.
+  const [mcOpenCount, setMcOpenCount] = useState(0);
+  const prevVisibleRef = useRef(mcScreenVisible);
+
+  // Track transitions false -> true so we can bump the key.
+  useEffect(() => {
+    if (mcScreenVisible && !prevVisibleRef.current) {
+      setMcOpenCount((c) => c + 1);
+    }
+    prevVisibleRef.current = mcScreenVisible;
+  }, [mcScreenVisible]);
 
   // Hydrate the last displayed Word file from localStorage.
   useEffect(() => {
@@ -43,8 +57,10 @@ export default function HomePage() {
         <ProjectorDisplay />
       </div>
 
-      {/* MC Screen overlay - shown when MC is speaking */}
+      {/* MC Screen overlay - shown when MC is speaking. The key bumps
+          on each open so internal state (music toggle) resets. */}
       <MCScreen
+        key={mcOpenCount}
         visible={mcScreenVisible}
         onClose={() => setMcScreenVisible(false)}
       />

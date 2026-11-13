@@ -10,10 +10,20 @@
  *    Video ID: JAFTuss-Ekw
  *
  * IMPORTANT (autoplay policy):
- *  - YouTube IFrame API cannot autoplay with sound until the page has
- *    received a user gesture. The loading screen now waits for a
- *    "Klik untuk Memulai" click before starting, so by the time we call
- *    playVideo() the gesture has happened and audio will be audible.
+ *  - The YouTube <iframe> MUST be created during a user gesture, but
+ *    the call to playVideo() can happen any time after that. The trick
+ *    that actually works across browsers is: create the player (which
+ *    embeds the iframe) on the FIRST user gesture, wait for onReady,
+ *    then call playVideo() with sound. We no longer defer iframe
+ *    creation until after the gate — we preload it eagerly.
+ *
+ * Implementation:
+ *  - `preloadPlayer()` creates the hidden iframe + YT.Player instance
+ *    and is called on EVERY user gesture (gate click, audio toggle,
+ *    page click) until ready. This is what unlocks autoplay-with-sound.
+ *  - `startArabicMusic()` / `startMcMusic()` then just call
+ *    playVideo() on the already-ready player (or queue a pendingPlay
+ *    flag if the player isn't ready yet).
  *  - The tick sound uses a SHARED AudioContext that is resumed on the
  *    same gesture; previously every tick created a brand-new suspended
  *    AudioContext and closed it immediately, which produced NO sound.
@@ -23,11 +33,6 @@ const LOADING_VIDEO_ID = "8rGeb1a-iPs"; // CEK SOUND ARABIC - WIJAYA ENTERTAINME
 const MC_VIDEO_ID = "JAFTuss-Ekw"; // National Arab Orchestra - Ghanili Shway
 
 // ---------- Shared AudioContext for tick sounds -----------------------------
-// Browsers create a brand-new AudioContext in the "suspended" state until
-// the user has interacted with the page. Previously playTick() created a
-// fresh AudioContext per tick and closed it again — every one of those
-// was suspended, so the tick was silent. We now keep ONE context and
-// call resume() on it whenever we touch it.
 let _audioCtx: AudioContext | null = null;
 
 function getAudioCtx(): AudioContext | null {
@@ -38,8 +43,6 @@ function getAudioCtx(): AudioContext | null {
     _audioCtx = new AC();
   }
   if (_audioCtx.state === "suspended") {
-    // Best-effort resume — must be called from within a user gesture
-    // (i.e. the click on "Klik untuk Memulai") to actually unblock audio.
     _audioCtx.resume().catch(() => {});
   }
   return _audioCtx;
@@ -47,7 +50,11 @@ function getAudioCtx(): AudioContext | null {
 
 let player: any = null;
 let isReady = false;
-let pendingPlay = false;
+// Which video the user actually W wants to hear right now. The player
+// may have been preloaded with the loading video; if the user opens
+// the MC screen before the loading music ever started, we swap.
+let desiredVideoId: string | null = null;
+// Which video is currently loaded into the iframe.
 let currentVideoId: string | null = null;
 let apiLoading = false;
 
@@ -84,18 +91,21 @@ function loadAPI(): Promise<void> {
   });
 }
 
-/** Create or reuse the hidden player. */
-async function ensurePlayer(videoId: string): Promise<any> {
+/** Create the hidden player + iframe. Must be called within a user
+ *  gesture for autoplay-with-sound to be allowed later. */
+async function preloadPlayer(videoId: string): Promise<any> {
   if (typeof window === "undefined") return null;
   await loadAPI();
   const YT = (window as any).YT;
   if (!YT || !YT.Player) return null;
 
-  // If player exists and is ready, just swap the video if needed.
-  if (player && isReady) {
+  // Player already exists — just make sure the right video is loaded.
+  if (player) {
     if (currentVideoId !== videoId) {
-      player.loadVideoById(videoId);
-      currentVideoId = videoId;
+      try {
+        player.loadVideoById(videoId);
+        currentVideoId = videoId;
+      } catch {}
     }
     return player;
   }
@@ -145,16 +155,24 @@ async function ensurePlayer(videoId: string): Promise<any> {
         onReady: () => {
           isReady = true;
           currentVideoId = videoId;
-          if (pendingPlay) {
-            pendingPlay = false;
+          // If the user already asked to play a (different) video
+          // before we finished loading, swap + play now.
+          if (desiredVideoId && desiredVideoId !== currentVideoId) {
             try {
-              player.setVolume(50);
+              player.loadVideoById(desiredVideoId);
+              currentVideoId = desiredVideoId;
+            } catch {}
+          }
+          if (desiredVideoId) {
+            try {
+              player.setVolume(60);
               player.playVideo();
             } catch {}
           }
           resolve(player);
         },
         onStateChange: (event: any) => {
+          // When the video ends, loop it.
           if (event.data === 0) {
             try {
               player.seekTo(0);
@@ -173,36 +191,43 @@ async function ensurePlayer(videoId: string): Promise<any> {
 
 /** Start playing the LOADING screen music (CEK SOUND ARABIC). */
 export async function startArabicMusic() {
-  return startVideo(LOADING_VIDEO_ID);
+  desiredVideoId = LOADING_VIDEO_ID;
+  try {
+    const p = await preloadPlayer(LOADING_VIDEO_ID);
+    if (!p) return;
+    if (!isReady) {
+      // onReady will pick up desiredVideoId and play.
+      return;
+    }
+    if (currentVideoId !== LOADING_VIDEO_ID) {
+      p.loadVideoById(LOADING_VIDEO_ID);
+      currentVideoId = LOADING_VIDEO_ID;
+    }
+    p.setVolume(60);
+    p.playVideo();
+  } catch {}
 }
 
 /** Start playing the MC SCREEN music (Ghanili Shway). */
 export async function startMcMusic() {
-  return startVideo(MC_VIDEO_ID);
-}
-
-/** Internal: play a specific video. */
-async function startVideo(videoId: string) {
+  desiredVideoId = MC_VIDEO_ID;
   try {
-    const p = await ensurePlayer(videoId);
-    if (!p || !isReady) {
-      pendingPlay = true;
-      currentVideoId = videoId;
+    const p = await preloadPlayer(MC_VIDEO_ID);
+    if (!p) return;
+    if (!isReady) {
       return;
     }
-    // Swap video if different from current.
-    if (currentVideoId !== videoId) {
-      p.loadVideoById(videoId);
-      currentVideoId = videoId;
+    if (currentVideoId !== MC_VIDEO_ID) {
+      p.loadVideoById(MC_VIDEO_ID);
+      currentVideoId = MC_VIDEO_ID;
     }
-    p.setVolume(50);
+    p.setVolume(60);
     p.playVideo();
-  } catch (e) {
-    // Silent fail.
-  }
+  } catch {}
 }
 
-/** Stop/pause the music. */
+/** Stop/pause the music (does NOT clear desiredVideoId, so a later
+ *  start can resume). */
 export function stopArabicMusic() {
   try {
     if (player && isReady) {
@@ -211,10 +236,15 @@ export function stopArabicMusic() {
   } catch {}
 }
 
-/** Initialize (preload) the player — call on user gesture. */
+/** Preload the player — call on EVERY user gesture (gate click, audio
+ *  toggle, first click anywhere). Creating the iframe during a gesture
+ *  is what unlocks autoplay-with-sound later. Safe to call repeatedly. */
 export async function initAudio() {
   try {
-    await ensurePlayer(LOADING_VIDEO_ID);
+    // Preload with whichever video is currently desired (default: the
+    // loading-screen track). If desiredVideoId is set we honor it.
+    const vid = desiredVideoId || LOADING_VIDEO_ID;
+    await preloadPlayer(vid);
   } catch {}
 }
 
@@ -224,7 +254,6 @@ export function playTick() {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
-    // If still suspended (no gesture yet), bail silently.
     if (ctx.state === "suspended") return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -238,6 +267,5 @@ export function playTick() {
     g.connect(ctx.destination);
     osc.start(start);
     osc.stop(start + 0.1);
-    // NOTE: do NOT call ctx.close() — the shared context must stay alive.
   } catch {}
 }
