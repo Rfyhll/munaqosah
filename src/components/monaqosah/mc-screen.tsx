@@ -259,6 +259,15 @@ export function MCScreen({ visible, onClose }: MCScreenProps) {
               Pondok Pesantren Bahtra
             </motion.p>
 
+            <motion.p
+              className="mt-1 text-xs tracking-[0.2em] text-[#1B6B4F]/70 md:text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.4, duration: 1 }}
+            >
+              BY : الثانوية الثالثة Tahun 2026/2027
+            </motion.p>
+
             {/* Status indicator */}
             <motion.div
               className="mt-10 flex items-center gap-3 rounded-full border border-[#0F4D3A]/30 bg-white/80 px-6 py-2.5 backdrop-blur"

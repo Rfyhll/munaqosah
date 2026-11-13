@@ -320,12 +320,21 @@ export function LoadingScreen() {
           </motion.h1>
 
           <motion.p
-            className="relative z-10 text-sm md:text-base text-[#1B6B4F]/80 tracking-[0.4em] uppercase mb-12"
+            className="relative z-10 text-sm md:text-base text-[#1B6B4F]/80 tracking-[0.4em] uppercase mb-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2, duration: 1 }}
           >
             Pondok Pesantren Bahtra
+          </motion.p>
+
+          <motion.p
+            className="relative z-10 text-xs md:text-sm text-[#1B6B4F]/70 tracking-[0.2em] mb-12"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.4, duration: 1 }}
+          >
+            BY : الثانوية الثالثة Tahun 2026/2027
           </motion.p>
 
           {/* Progress bar */}
